@@ -14,14 +14,17 @@ import random
 import numpy as np
 import numpy.random as npr
 import numpy.linalg
+import torch
 
 import matplotlib.pyplot as plt
 from matplotlib.gridspec import GridSpec
+import logging
+log = logging.getLogger(__name__)
 
 def trainMultiRegionRNN(activity, dtData=1, dtFactor=1, g=1.5, tauRNN=0.01,
                         tauWN=0.1, ampInWN=0.01, nRunTrain=2000,
                         nRunFree=10, P0=1.0,
-                        nonLinearity=np.tanh,
+                        nonLinearity=torch.tanh,
                         nonLinearity_inv=np.arctanh,
                         resetPoints=None,
                         plotStatus=True, verbose=True,
@@ -65,7 +68,7 @@ def trainMultiRegionRNN(activity, dtData=1, dtFactor=1, g=1.5, tauRNN=0.01,
         keys are region names, values are np.array of indeces.
     """
     if dtData is None:
-        print('dtData not specified. Defaulting to 1.');
+        log.info('dtData not specified. Defaulting to 1.');
         dtData = 1;
     if resetPoints is None:
         resetPoints = [0, ]
@@ -95,16 +98,18 @@ def trainMultiRegionRNN(activity, dtData=1, dtFactor=1, g=1.5, tauRNN=0.01,
 
     # initialize directed interaction matrix J
     J = g * npr.randn(number_units, number_units) / math.sqrt(number_units)
-    J0 = J.copy()
-
+    J = torch.from_numpy(J).float()
+    J0 = J.clone()
+    
     # set up target training data
     Adata = activity.copy()
     Adata = Adata/Adata.max()
     Adata = np.minimum(Adata, 0.999)
     Adata = np.maximum(Adata, -0.999)
-
+    Adata = torch.from_numpy(Adata)
     # get standard deviation of entire data
-    stdData = np.std(Adata[iTarget, :])
+    stdData = torch.std(Adata[iTarget, :])
+
 
     # get indices for each sample of model data
     iModelSample = numpy.zeros(len(tData), dtype=np.int32)
@@ -112,12 +117,14 @@ def trainMultiRegionRNN(activity, dtData=1, dtFactor=1, g=1.5, tauRNN=0.01,
         iModelSample[i] = (np.abs(tRNN - tData[i])).argmin()
 
     # initialize some others
-    RNN = np.zeros((number_units, len(tRNN)))
+    
+    RNN = torch.zeros((number_units, len(tRNN))).float()
+    
     chi2s = []
     pVars = []
 
     # initialize learning update matrix (see Sussillo and Abbot, 2009)
-    PJ = P0*np.eye(number_learn)
+    PJ = P0*torch.eye(number_learn)
 
     if plotStatus is True:
         plt.rcParams.update({'font.size': 6})
@@ -131,14 +138,15 @@ def trainMultiRegionRNN(activity, dtData=1, dtFactor=1, g=1.5, tauRNN=0.01,
     # start training
     # loop along training runs
     for nRun in range(0, nRunTot):
-        H = Adata[:, 0, np.newaxis]
-        RNN[:, 0, np.newaxis] = nonLinearity(H)
+        H = Adata[:, 0, None]
+        RNN[:, 0, None] = nonLinearity(H)
+        
         # variables to track when to update the J matrix since the RNN and
-        # data can have different dt values
+        # data can have different dt values        
         tLearn = 0  # keeps track of current time
         iLearn = 0  # keeps track of last data point learned
         chi2 = 0.0
-
+        
         for tt in range(1, len(tRNN)):
             # update current learning time
             tLearn += dtRNN
@@ -147,35 +155,41 @@ def trainMultiRegionRNN(activity, dtData=1, dtFactor=1, g=1.5, tauRNN=0.01,
             if tt in resetPoints:
                 timepoint = math.floor(tt / dtFactor)
                 H = Adata[:, timepoint]
+                
             # compute next RNN step
-            RNN[:, tt, np.newaxis] = nonLinearity(H)
-            JR = (J.dot(RNN[:, tt]).reshape((number_units, 1)) +
-                  inputWN[:, tt, np.newaxis])
+            RNN[:, tt, None] = nonLinearity(H)
+            JR = (torch.einsum('jk,k -> j',J,RNN[:, tt]).reshape((number_units, 1)) +
+                  inputWN[:, tt, None])
             H = H + dtRNN*(-H + JR)/tauRNN
+            
             # check if the RNN time coincides with a data point to update J
             if tLearn >= dtData:
                 tLearn = 0
-                err = RNN[:, tt, np.newaxis] - Adata[:, iLearn, np.newaxis]
+                err = RNN[:, tt, None] - Adata[:, iLearn, None]
+                
                 iLearn = iLearn + 1
                 # update chi2 using this error
-                chi2 += np.mean(err ** 2)
+                chi2 += torch.mean(err ** 2)
 
                 if nRun < nRunTrain:
                     r_slice = RNN[iTarget, tt].reshape(number_learn, 1)
-                    k = PJ.dot(r_slice)
-                    rPr = (r_slice).T.dot(k)[0, 0]
-                    c = 1.0/(1.0 + rPr)
-                    PJ = PJ - c*(k.dot(k.T))
-                    J[:, iTarget.flatten()] = J[:, iTarget.reshape((number_units))] - c*np.outer(err.flatten(), k.flatten())
+                    k = torch.einsum('ik,kj -> ij', PJ, r_slice)
+                    rPr = torch.einsum('ik,kj -> ij', r_slice.T, k)
+                    c = 1.0/(1.0 + rPr) 
+                    PJ = PJ - c*(torch.einsum('ik,kj -> ij', k, k.T))
+                    J[:, iTarget.flatten()] = J[:, iTarget.reshape((number_units))] - c*(torch.outer(err.flatten(), k.flatten()).float())
 
         rModelSample = RNN[iTarget, :][:, iModelSample]
-        distance = np.linalg.norm(Adata[iTarget, :] - rModelSample)
+        distance = torch.norm(Adata[iTarget, :] - rModelSample)
         pVar = 1 - (distance / (math.sqrt(len(iTarget) * len(tData))
                     * stdData)) ** 2
+        
         pVars.append(pVar)
         chi2s.append(chi2)
+        
         if verbose:
-            print('trial=%d pVar=%f chi2=%f' % (nRun, pVar, chi2))
+            step_log = f'[{nRun}/{nRunTot}]'
+            log.info(f'Torch   trial={nRun} pVar={pVar} chi2={chi2} {step_log:>15}')
         if fig:
             fig.clear()
             ax = fig.add_subplot(gs[0, 0])
@@ -582,7 +596,7 @@ def computeCURBD(sim):
     """
     current_type = 'all'  # 'excitatory', 'inhibitory', or 'all'
     RNN = sim['RNN']
-    J = sim['J'].copy()
+    J = sim['J'].clone()
     regions = sim['regions']
 
     if regions is None:
@@ -610,7 +624,7 @@ def computeCURBD(sim):
             in_src = regions[idx_src, 1]
             lab_src = regions[idx_src, 0]
             sub_J = J[in_trg, :][:, in_src]
-            CURBD[idx_trg, idx_src] = sub_J.dot(RNN[in_src, :])
+            CURBD[idx_trg, idx_src] = torch.einsum('ij,jk -> ik', sub_J, RNN[in_src, :])
             CURBDLabels[idx_trg, idx_src] = "{} to {}".format(lab_src,
                                                               lab_trg)
     return (CURBD, CURBDLabels)
