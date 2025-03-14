@@ -1,0 +1,48 @@
+# @package _global_
+
+dir:
+  data: '${dir.proj}/data/jsyoo61_09062024_stefan'
+  data_cache: '${dir.proj}/data/jsyoo61_09062024_stefan_cache'
+  data_pickle: '${dir.proj}/data/jsyoo61_09062024_stefan_pickle'
+  filename: 'all_session_neural_data_bc_25s_su.p'
+  summaryname: 'summary_su.csv'
+
+  data_prototype: '${dir.data_pickle}/prototype'
+  prototypefilename: 'prototype.p'
+  prototypesummaryname: 'summary.csv'
+  
+data:
+  T: 0.002 # 2 ms
+  sr: 500 # 500 Hz
+  sr_camera: 500 # Same as spike sorted recordings (coincidence)
+
+# Camera onset at 10s, neural recording 15s, camera off for last 15s
+# Camera: 15s, neural: 40s
+
+  T_camera_onset: 10 # seconds
+  T_cue: 0.5 # seconds
+  T_interest_before: 0.1 # seconds before cue
+  T_interest_after: 0.4 # seconds after cue
+
+  N_spt_offset: 0 # spiketrain offset compared to behavioral data
+
+# Prototype info
+# index session	n_trials	animaltype	animalname
+# 0	2	68	WT	LSL5
+# 1	3	67	WT	LSL5
+# 2	5	75	WT	LSL5
+# 3	2	81	AS	LSL9
+# 4	7	80	AS	LSL9
+  prototype: true
+  prototype_i: 0 # 0-4 that corresponds to above sessions
+
+  behavior_delay : 0
+  
+brainregions:
+  - 'm1'
+  - 'dcn'
+  - 'thal'
+  - 'str'
+  - 'cbcx'
+  - 'hipp'
+

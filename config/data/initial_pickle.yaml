@@ -1,0 +1,25 @@
+# @package _global_
+
+dir:
+  data: '${dir.proj}/data/jsyoo61_initial'
+  data_pickle: '${dir.proj}/data/jsyoo61_initial_pickle'
+  filename: 'all_pez_data.p'
+  summaryname: 'summary.csv'
+
+data:
+  T: 0.002 # 2 ms
+  sr: 500 # 500 Hz
+  sr_camera: 500 # Same as spike sorted recordings (coincidence)
+
+  T_camera_onset: 5 # seconds
+  T_cue: 0.5 # seconds
+  T_interest_before: 0.1 # seconds before cue
+  T_interest_after: 0.4 # seconds after cue
+
+  prototype: false
+  
+brainregions:
+  - 'm1'
+  - 'dcn'
+  - 'thal'
+  - 'str'

@@ -1,0 +1,7 @@
+defaults:
+  - dir
+  - runtime
+  - data: 09062024_stefan
+
+data:
+  min_N: 10 # Based on data_summary.py, used to be cfg.data.n_PC

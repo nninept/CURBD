@@ -1,0 +1,5 @@
+dir:
+  root: '/proj/hantmanlab/projects'
+  cwd: '${dir.root}/code/CURBD'
+  proj: '/proj/hantmanlab/projects'
+  work : '/work/users/n/n/nninept/spiketrain'

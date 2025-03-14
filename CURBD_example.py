@@ -12,52 +12,68 @@
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 """
 
+import hydra
 import numpy as np
-import pylab
-
+from omegaconf import OmegaConf, DictConfig
+import matplotlib.pyplot as plt
 import curbd
+import logging
+import torch
 
-sim = curbd.threeRegionSim(number_units=100)
+log = logging.getLogger(__name__)
 
-activity = np.concatenate((sim['Ra'], sim['Rb'], sim['Rc']), 0)
+# %%
+# Assumes the process runs in a new directory (hydra.job.cwd==True)
+@hydra.main(config_path='config', config_name='train', version_base=None)
+def main(cfg: DictConfig) -> None:
+    
+    torch.manual_seed(cfg.random.seed)
+    np.random.seed(cfg.random.seed)
+    
+    sim = curbd.threeRegionSim(number_units=100)
 
-Na = sim['params']['Na']
-Nb = sim['params']['Nb']
-Nc = sim['params']['Nc']
+    activity = np.concatenate((sim['Ra'], sim['Rb'], sim['Rc']), 0)
 
-regions = []
-regions.append(['Region A', np.arange(0, Na)])
-regions.append(['Region B', np.arange(Na, Na + Nb)])
-regions.append(['Region C', np.arange(Na + Nb, Na + Nb + Nc)])
-regions = np.array(regions, dtype=object)
+    Na = sim['params']['Na']
+    Nb = sim['params']['Nb']
+    Nc = sim['params']['Nc']
 
-model = curbd.trainMultiRegionRNN(activity,
-                                  dtData=sim['params']['dtData'],
-                                  dtFactor=5,
-                                  regions=regions,
-                                  tauRNN=2*sim['params']['tau']/2,
-                                  nRunTrain=500,
-                                  verbose=True,
-                                  nRunFree=5)
+    regions = []
+    regions.append(['Region A', np.arange(0, Na)])
+    regions.append(['Region B', np.arange(Na, Na + Nb)])
+    regions.append(['Region C', np.arange(Na + Nb, Na + Nb + Nc)])
+    regions = np.array(regions, dtype=object)
 
-[curbd_arr, curbd_labels] = curbd.computeCURBD(model)
+    model = curbd.trainMultiRegionRNN(activity,
+                                    dtData=sim['params']['dtData'],
+                                    dtFactor=5,
+                                    regions=regions,
+                                    tauRNN=2*sim['params']['tau']/2,
+                                    nRunTrain=500,
+                                    verbose=True,
+                                    nRunFree=5)
 
-n_regions = curbd_arr.shape[0]
-n_region_units = curbd_arr[0, 0].shape[0]
+    [curbd_arr, curbd_labels] = curbd.computeCURBD(model)
 
-fig = pylab.figure(figsize=[8, 8])
-count = 1
-for iTarget in range(n_regions):
-    for iSource in range(n_regions):
-        axn = fig.add_subplot(n_regions, n_regions, count)
-        count += 1
-        axn.pcolormesh(model['tRNN'], range(n_region_units),
-                       curbd_arr[iTarget, iSource])
-        axn.set_xlabel('Time (s)')
-        axn.set_ylabel('Neurons in {}'.format(regions[iTarget, 0]))
-        axn.set_title(curbd_labels[iTarget, iSource])
-        axn.title.set_fontsize(8)
-        axn.xaxis.label.set_fontsize(8)
-        axn.yaxis.label.set_fontsize(8)
-fig.subplots_adjust(hspace=0.4, wspace=0.3)
-fig.show()
+    n_regions = curbd_arr.shape[0]
+    n_region_units = curbd_arr[0, 0].shape[0]
+
+    fig = plt.figure(figsize=[8, 8])
+    count = 1
+    for iTarget in range(n_regions):
+        for iSource in range(n_regions):
+            axn = fig.add_subplot(n_regions, n_regions, count)
+            count += 1
+            axn.pcolormesh(model['tRNN'], range(n_region_units),
+                        curbd_arr[iTarget, iSource])
+            axn.set_xlabel('Time (s)')
+            axn.set_ylabel('Neurons in {}'.format(regions[iTarget, 0]))
+            axn.set_title(curbd_labels[iTarget, iSource])
+            axn.title.set_fontsize(8)
+            axn.xaxis.label.set_fontsize(8)
+            axn.yaxis.label.set_fontsize(8)
+    fig.subplots_adjust(hspace=0.4, wspace=0.3)
+    fig.show()
+
+if __name__=='__main__':
+    main()

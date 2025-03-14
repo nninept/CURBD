@@ -1,0 +1,12 @@
+
+
+hydra:
+  job:
+    chdir: true
+  
+runtime:
+  gpu_id: 0
+  amp: False
+
+n_cpu: 8 # Number of CPUs for parallel processing
+n_job_per_cpu: 2 # Number of jobs for parallel processing

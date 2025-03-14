@@ -1,0 +1,34 @@
+defaults:
+  - base
+  # Model included in "/task" since it's task dependent
+
+# Customize
+train:
+  update:
+    lr: 1e-3
+    batch_size: 32
+    epoch: 1000
+    cv_step: 50
+
+  validation:
+    target_dataset: val
+    batch_size: 128 # test batch_size
+    patience: 100 # About 8-9 epochs with smallest batch_size of 128
+    criterion: r2
+    increase_better: True
+    all_period : true
+
+eval:
+  metric:
+    _target_: hideandseek.eval.mse_score
+    # DSA
+
+# Mostly consistent with the default 
+random:
+  seed: 21
+  strict: False
+
+save:
+  model: False
+  result: False
+  score: True
